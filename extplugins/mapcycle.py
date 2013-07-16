@@ -17,7 +17,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 __author__ = 'Fenix - http://www.urbanterror.info'
-__version__ = '1.0'
+__version__ = '1.0.1'
 
 import b3
 import b3.plugin
@@ -38,7 +38,7 @@ class MapcyclePlugin(b3.plugin.Plugin):
     _sql = { 'q1' : "INSERT INTO `maplist`(`mapname`, `time_add`, `time_edit`) VALUES ('%s', '%d', '%d')", 
              'q2' : "UPDATE `maplist` SET `num_played` = '%d', `time_edit` = '%d' WHERE `mapname` = '%s'",
              'q3' : "SELECT * FROM `maplist` WHERE `mapname` = '%s'", 
-             'q4' : "SELECT * FROM `maplist` ORDER BY `time_edit` DESC LIMIT 0, %d", }
+             'q4' : "SELECT * FROM `maplist` ORDER BY `time_edit` DESC LIMIT 1, %d", }
                 
     
     def onLoadConfig(self):
