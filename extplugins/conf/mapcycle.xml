@@ -1,0 +1,8 @@
+<configuration plugin="callvote">
+    <settings name="settings">
+        <set name='lastmaplimit'>3</set>
+    </settings>
+    <settings name="commands">
+        <set name='lastmap'>2</set>
+    </settings> 
+</configuration>
