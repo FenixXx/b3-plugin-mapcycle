@@ -4,5 +4,6 @@
     </settings>
     <settings name="commands">
         <set name='lastmap'>2</set>
+        <set name='setnextmap-pasetnextmap'>40</set>
     </settings> 
 </configuration>

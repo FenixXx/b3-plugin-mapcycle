@@ -19,6 +19,7 @@ The algorithm which computes the nextmap ensure to have always a different level
 ## In-game user guide
 
 * **!lastmap** *Display the last map(s) played on the server*
+* **!setnextmap [<mapname>]** *Set the nextmap on the server*
 
 ## Support
 

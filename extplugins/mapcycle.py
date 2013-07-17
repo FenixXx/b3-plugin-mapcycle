@@ -17,7 +17,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 __author__ = 'Fenix - http://www.urbanterror.info'
-__version__ = '1.1'
+__version__ = '1.1.1'
 
 import b3
 import b3.plugin
@@ -90,7 +90,7 @@ class MapcyclePlugin(b3.plugin.Plugin):
         
      
     def onEvent(self, event):
-        """\
+        """
         Handle intercepted events
         """
         if event.type == b3.events.EVT_GAME_WARMUP:
@@ -214,7 +214,7 @@ class MapcyclePlugin(b3.plugin.Plugin):
     
 
     def onMapStart(self):
-        """\
+        """
         Perform operations on map start
         """
         mapname = self.console.game.mapName
@@ -229,20 +229,20 @@ class MapcyclePlugin(b3.plugin.Plugin):
             self.console.storage.query(self._sql['q2'] % (num_played, self.console.time(), mapname))
             cursor.close()
             
-        maplist = self.getMapList()
-        if len(maplist) == 0:
+        self._mapcycle = self.getMapList()
+        if not self._mapcycle:
             # Mapcycle file couldn't be read so
             # exit here to prevent further failures
             return
         
         # Print some debug in the log file so the user can check the correct behavior of the plugin
-        self.debug("Mapcycle file has %d maps: %s" % (len(maplist), ' | '.join(maplist)))
+        self.debug("Mapcycle file has %d maps: %s" % (len(self._mapcycle), ' | '.join(self._mapcycle)))
         
         av_maps = []
         lp_maps = []
         
         # Retrieving last played maps in order to compute a proper g_nextmap
-        cursor = self.console.storage.query(self._sql['q4'] % (len(maplist) - 1))
+        cursor = self.console.storage.query(self._sql['q4'] % (len(self._mapcycle) - 1))
         
         while not cursor.EOF:
             r = cursor.getRow()
@@ -256,11 +256,11 @@ class MapcyclePlugin(b3.plugin.Plugin):
         
         # Looking for a map not being played
         # recently so we can use it as nextmap
-        for m in maplist:
+        for m in self._mapcycle:
             if m not in lp_maps:
                 av_maps.append(m)
         
-        if len(av_maps) == 0:
+        if not av_maps:
             self.warning("No available maps from which to get the nextmap")
             return
         
@@ -278,13 +278,44 @@ class MapcyclePlugin(b3.plugin.Plugin):
     # ######################################################################################### #
     
     
+    def cmd_setnextmap(self, data, client=None, cmd=None):
+        """
+        [<mapname>] - Set the nextmap
+        """
+        if not data:
+            
+            # No input given
+            # Pick a random map from the mapcycle
+            if not self._mapcycle:
+                self._mapcycle = self.getMapList()
+                if not self._mapcycle:
+                    client.message('Could not retrieve mapcycle maps list')
+                    return
+                    
+            randint = random.randint(0, len(self._mapcycle) - 1)
+            self.console.setCvar('g_nextmap', self._mapcycle[randint])
+            self.console.say('^7Next Map: ^2%s' % self._mapcycle[randint]) 
+            
+        else:
+            
+            match = self.console.getMapsSoundingLike(data)
+            if isinstance(match, basestring):
+                mapname = match
+                self.console.setCvar('g_nextmap', mapname)
+                self.console.say('^7Next Map: ^2%s' % mapname)
+            elif isinstance(match, list):
+                client.message('Do you mean: ^3%s ?' % '^7, ^3'.join(match))
+            else:
+                client.message('Could not find any map matching ^1%s' % data)
+                
+    
     def cmd_lastmap(self, data, client, cmd=None):
-        """\
+        """
         Display the last map(s) played
         """
         maplist = self.getLastMap()
         
-        if len(maplist) == 0:
+        if not maplist:
             cmd.sayLoudOrPM(client, '^7Could not retrieve last map')
             return;
         
