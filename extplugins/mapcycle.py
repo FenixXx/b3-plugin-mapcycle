@@ -17,7 +17,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 __author__ = 'Fenix - http://www.urbanterror.info'
-__version__ = '1.0.1'
+__version__ = '1.1'
 
 import b3
 import b3.plugin
@@ -235,7 +235,7 @@ class MapcyclePlugin(b3.plugin.Plugin):
             return
         
         # Print some debug in the log file so the user can check the correct behavior of the plugin
-        self.debug("Mapcycle file contains %d map%s: %s" % (len(maplist), 's' if len(maplist) != 1 else '', '|'.join(maplist)))
+        self.debug("Mapcycle file has %d maps: %s" % (len(maplist), ' | '.join(maplist)))
         
         av_maps = []
         lp_maps = []
@@ -251,7 +251,7 @@ class MapcyclePlugin(b3.plugin.Plugin):
         cursor.close()
         
         # Print some debug in the log file so the user can check the correct behavior of the plugin
-        self.debug("Last played map%s: %s" % ('s' if len(lp_maps) != 1 else '', '|'.join(lp_maps)))
+        self.debug("Last %d played maps: %s" % (len(lp_maps), ' | '.join(lp_maps)))
         
         # Looking for a map not being played
         # recently so we can use it as nextmap
@@ -264,10 +264,7 @@ class MapcyclePlugin(b3.plugin.Plugin):
             return
         
         # Print some debug in the log file so the user can check the correct behavior of the plugin
-        self.debug("Map%s available for next cycle: %s" % ('s' if len(av_maps) != 1 else '', '|'.join(av_maps)))    
-        
-        # Log the chosen nextmap for debugging purpose
-        self.debug("Setting g_nextmap to: %s" % av_maps[0])
+        self.debug("List of %d maps available for next cycle: %s" % (len(av_maps), ' | '.join(av_maps)))    
         
         # Setting next map and printing result in-game
         self.console.setCvar('g_nextmap', av_maps[0])
