@@ -1,4 +1,4 @@
-<configuration plugin="callvote">
+<configuration plugin="mapcycle">
     <settings name="settings">
         <set name='lastmaplimit'>3</set>
     </settings>
