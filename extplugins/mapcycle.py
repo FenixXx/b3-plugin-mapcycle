@@ -24,6 +24,7 @@ import b3.plugin
 import b3.events
 import re
 import os
+import random
     
 class MapcyclePlugin(b3.plugin.Plugin):
     
@@ -267,8 +268,9 @@ class MapcyclePlugin(b3.plugin.Plugin):
         self.debug("List of %d maps available for next cycle: %s" % (len(av_maps), ' | '.join(av_maps)))    
         
         # Setting next map and printing result in-game
-        self.console.setCvar('g_nextmap', av_maps[0])
-        self.console.say('^7Next Map: ^2%s' % av_maps[0])
+        randint = random.randint(0, len(av_maps) - 1)
+        self.console.setCvar('g_nextmap', av_maps[randint])
+        self.console.say('^7Next Map: ^2%s' % av_maps[randint])
  
  
     # ######################################################################################### #
