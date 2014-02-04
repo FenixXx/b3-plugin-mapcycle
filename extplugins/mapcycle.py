@@ -142,6 +142,9 @@ class MapcyclePlugin(b3.plugin.Plugin):
         self.registerEvent(b3.events.EVT_GAME_WARMUP, self.onLevelStart)
         self.registerEvent(b3.events.EVT_GAME_ROUND_START, self.onLevelStart)
 
+        # execute the mapcycle routine
+        self.do_mapcycle_routine()
+
     ####################################################################################################################
     ##                                                                                                                ##
     ##   EVENTS                                                                                                       ##
@@ -156,6 +159,26 @@ class MapcyclePlugin(b3.plugin.Plugin):
         if not self.is_level_started(event):
             return
 
+        # execute the mapcycle routine
+        self.do_mapcycle_routine()
+                
+    ####################################################################################################################
+    ##                                                                                                                ##
+    ##   FUNCTIONS                                                                                                    ##
+    ##                                                                                                                ##
+    ####################################################################################################################
+        
+    def get_cmd(self, cmd):
+        cmd = 'cmd_%s' % cmd
+        if hasattr(self, cmd):
+            func = getattr(self, cmd)
+            return func
+        return None
+
+    def do_mapcycle_routine(self):
+        """\
+        Execute the mapcycle routine
+        """
         # get the current map name
         mapname = self.console.game.mapName
         if not mapname:
@@ -218,19 +241,6 @@ class MapcyclePlugin(b3.plugin.Plugin):
         randint = randrange(len(list2) - 1)
         self.nextmap = list2[randint]
         self.console.setCvar('g_nextmap', list2[randint])
-                
-    ####################################################################################################################
-    ##                                                                                                                ##
-    ##   FUNCTIONS                                                                                                    ##
-    ##                                                                                                                ##
-    ####################################################################################################################
-        
-    def get_cmd(self, cmd):
-        cmd = 'cmd_%s' % cmd
-        if hasattr(self, cmd):
-            func = getattr(self, cmd)
-            return func
-        return None
 
     def is_level_started(self, event):
         """\
