@@ -23,6 +23,7 @@ import b3
 import b3.plugin
 import b3.events
 import time
+import re
 
 from ConfigParser import NoOptionError
 from ConfigParser import NoSectionError
@@ -141,6 +142,7 @@ class MapcyclePlugin(b3.plugin.Plugin):
         # register the events needed
         self.registerEvent(b3.events.EVT_GAME_WARMUP, self.onLevelStart)
         self.registerEvent(b3.events.EVT_GAME_ROUND_START, self.onLevelStart)
+        self.registerEvent(b3.events.EVT_VOTE_PASSED, self.onVotePassed)
 
         # execute the mapcycle routine
         self.do_mapcycle_routine()
@@ -161,6 +163,23 @@ class MapcyclePlugin(b3.plugin.Plugin):
 
         # execute the mapcycle routine
         self.do_mapcycle_routine()
+
+    def onVotePassed(self, event):
+        """\
+        Handle EVT_VOTE_PASSED
+        """
+        r = re.compile(r'''^(?P<type>\w+)\s?(?P<args>.*)$''')
+        m = r.match(event.data['what'])
+        if not m:
+            self.warning('could not parse callvote data: %s' % event.data)
+            return
+
+        if m.group('type') == 'g_nextmap':
+            self.nextmap = m.group('args')
+        elif m.group('type') == 'map':
+            self.set_level_cvars(m.group('args'), latch=True)
+        elif m.group('type') == 'cyclemap':
+            self.set_level_cvars(self.nextmap, latch=True)
                 
     ####################################################################################################################
     ##                                                                                                                ##
