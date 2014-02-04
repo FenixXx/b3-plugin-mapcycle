@@ -257,7 +257,7 @@ class MapcyclePlugin(b3.plugin.Plugin):
 
         # if no map is left
         if len(list2) == 0:
-            self.warning('could not compute nextmap to be set on server: on available maps left')
+            self.warning('could not compute nextmap to be set on server: no available maps left')
             return
 
         # print available map list and num of elements in log file for debugging purpose
