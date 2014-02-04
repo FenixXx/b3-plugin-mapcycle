@@ -57,7 +57,7 @@ class MapcyclePlugin(b3.plugin.Plugin):
         Build the plugin object
         """
         b3.plugin.Plugin.__init__(self, console, config)
-        if self.console.gameName != 'iourt41' and self.console.gameName != 'iourt42':
+        if self.console.gameName != 'iourt42':
             self.critical("unsupported game : %s" % self.console.gameName)
             raise SystemExit(220)
 
