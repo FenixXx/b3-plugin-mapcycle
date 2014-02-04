@@ -143,6 +143,7 @@ class MapcyclePlugin(b3.plugin.Plugin):
         self.registerEvent(b3.events.EVT_GAME_WARMUP, self.onLevelStart)
         self.registerEvent(b3.events.EVT_GAME_ROUND_START, self.onLevelStart)
         self.registerEvent(b3.events.EVT_VOTE_PASSED, self.onVotePassed)
+        self.registerEvent(b3.events.EVT_GAME_EXIT, self.onGameExit)
 
         # execute the mapcycle routine
         self.do_mapcycle_routine()
@@ -180,6 +181,12 @@ class MapcyclePlugin(b3.plugin.Plugin):
             self.set_level_cvars(m.group('args'), latch=True)
         elif m.group('type') == 'cyclemap':
             self.set_level_cvars(self.nextmap, latch=True)
+
+    def onGameExit(self, event):
+        """\
+        Handle EVT_GAME_EXIT
+        """
+        self.set_level_cvars(self.nextmap, latch=True)
                 
     ####################################################################################################################
     ##                                                                                                                ##
