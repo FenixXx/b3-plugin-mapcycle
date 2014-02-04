@@ -1,0 +1,15 @@
+<configuration plugin="mapcycle">
+    <settings name="settings">
+        <set name='lastmaplimit'>3</set>
+    </settings>
+    <settings name="commands">
+        <set name='lastmap'>2</set>
+    </settings>
+    <mapcycle>
+        <!-- define here the mapcycle list: you can add map specific cvars by specifying
+        them as node attribute (see example below). the plugin will take care of correctly
+        set the specified cvar on map start (or previous map end if the cvar is latch) -->
+        <!-- <map g_gametype="4" timelimit="10">ut4_abbey</map> -->
+        <!-- <map g_gametype="7" timelimit="20">ut4_abbeyctf</map> -->
+    </mapcycle>
+</configuration>
