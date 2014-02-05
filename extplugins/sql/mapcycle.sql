@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS `maplist` (
+CREATE TABLE IF NOT EXISTS `maphistory` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `mapname` varchar(60) DEFAULT NULL,
   `num_played` int(10) unsigned NOT NULL DEFAULT '1',

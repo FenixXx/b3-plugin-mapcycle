@@ -39,10 +39,10 @@ class MapcyclePlugin(b3.plugin.Plugin):
     _mapcycle = dict()
     _settings = dict(last_map_limit=3)
 
-    _sql = dict(q1="""INSERT INTO `maplist`(`mapname`, `time_add`, `time_edit`) VALUES ('%s', '%d', '%d')""",
-                q2="""UPDATE `maplist` SET `num_played` = '%d', `time_edit` = '%d' WHERE `mapname` = '%s'""",
-                q3="""SELECT * FROM `maplist` WHERE `mapname` = '%s'""",
-                q4="""SELECT * FROM `maplist` ORDER BY `time_edit` DESC LIMIT %d, %d""")
+    _sql = dict(q1="""INSERT INTO `maphistory`(`mapname`, `time_add`, `time_edit`) VALUES ('%s', '%d', '%d')""",
+                q2="""UPDATE `maphistory` SET `num_played` = '%d', `time_edit` = '%d' WHERE `mapname` = '%s'""",
+                q3="""SELECT * FROM `maphistory` WHERE `mapname` = '%s'""",
+                q4="""SELECT * FROM `maphistory` ORDER BY `time_edit` DESC LIMIT %d, %d""")
 
     nextmap = None
 
