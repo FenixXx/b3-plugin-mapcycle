@@ -83,7 +83,7 @@ class MapcyclePlugin(b3.plugin.Plugin):
         """
         try:
             self._settings['last_map_limit'] = self.config.getint('settings', 'lastmaplimit')
-            self.debug('loaded settings/lastmaplimit setting: %s' % self._settings['lastmaplimit'])
+            self.debug('loaded settings/lastmaplimit setting: %s' % self._settings['last_map_limit'])
         except NoOptionError:
             self.warning('could not find settings/lastmaplimit in config file, '
                          'using default: %s' % self._settings['last_map_limit'])
