@@ -17,7 +17,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 __author__ = 'Fenix'
-__version__ = '1.1'
+__version__ = '1.2'
 
 import b3
 import b3.plugin
@@ -92,36 +92,6 @@ class MapcyclePlugin(b3.plugin.Plugin):
             self.debug('using default value (%s) for settings/lastmaplimit' %
                        self._settings['last_map_limit'])
 
-        try:
-
-            # load the mapcycle map list
-            document = minidom.parse(self.config.fileName)
-            maps = document.getElementsByTagName('map')
-            for node in maps:
-                # get the map name to be used as dict key:
-                # if it's empty it will just be skipped
-                mapname = None
-                for v in node.childNodes:
-                    if v.nodeType == v.TEXT_NODE:
-                        mapname = v.data
-                        break
-
-                # if there is no text
-                if not mapname:
-                    self.warning('could not load mapname from mapcycle map list: empty node found')
-                    continue
-
-                cvars = dict()
-                for name, value in node.attributes.items():
-                    cvars[name.lower()] = value
-
-                # store the map in the dict
-                self._mapcycle[mapname] = cvars
-                self.debug('loaded map [%s] : %s' % (mapname, self._mapcycle[mapname]))
-
-        except NoSectionError, e:
-            self.error('could not load mapcycle list form configuration file: %s' % e)
-
     def onStartup(self):
         """\
         Initialize plugin settings
@@ -145,6 +115,9 @@ class MapcyclePlugin(b3.plugin.Plugin):
         self.registerEvent(b3.events.EVT_VOTE_PASSED, self.onVotePassed)
         self.registerEvent(b3.events.EVT_GAME_EXIT, self.onGameExit)
 
+        # parse the mapcycle
+        self.parse_mapcycle()
+
         # execute the mapcycle routine
         self.do_mapcycle_routine()
 
@@ -161,6 +134,9 @@ class MapcyclePlugin(b3.plugin.Plugin):
         # be sure to be at the very map beginning
         if not self.is_level_started(event):
             return
+
+        # parse the mapcycle
+        self.parse_mapcycle()
 
         # execute the mapcycle routine
         self.do_mapcycle_routine()
@@ -200,6 +176,43 @@ class MapcyclePlugin(b3.plugin.Plugin):
             func = getattr(self, cmd)
             return func
         return None
+
+    def parse_mapcycle(self):
+        """\
+        Parse the mapcycle from the configuration file
+        """
+        try:
+
+            # empty the dict
+            self._mapcycle = dict()
+
+            # load the mapcycle map list
+            document = minidom.parse(self.config.fileName)
+            maps = document.getElementsByTagName('map')
+            for node in maps:
+                # get the map name to be used as dict key:
+                # if it's empty it will just be skipped
+                mapname = None
+                for v in node.childNodes:
+                    if v.nodeType == v.TEXT_NODE:
+                        mapname = v.data
+                        break
+
+                # if there is no text
+                if not mapname:
+                    self.warning('could not load mapname from mapcycle map list: empty node found')
+                    continue
+
+                cvars = dict()
+                for name, value in node.attributes.items():
+                    cvars[name.lower()] = value
+
+                # store the map in the dict
+                self._mapcycle[mapname] = cvars
+                self.debug('loaded map [%s] : %s' % (mapname, self._mapcycle[mapname]))
+
+        except NoSectionError, e:
+            self.error('could not load mapcycle list form configuration file: %s' % e)
 
     def do_mapcycle_routine(self):
         """\
