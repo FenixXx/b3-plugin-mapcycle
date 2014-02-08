@@ -17,7 +17,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 __author__ = 'Fenix'
-__version__ = '1.2'
+__version__ = '1.3'
 
 import b3
 import b3.plugin
@@ -264,7 +264,7 @@ class MapcyclePlugin(b3.plugin.Plugin):
         self.verbose("available map list is composed of %s maps: %s" % (len(list2), ', '.join(list2)))
 
         # selecting a random nextmap among the list
-        randint = randrange(len(list2) - 1)
+        randint = randrange(len(list2))
         self.nextmap = list2[randint]
         self.console.setCvar('g_nextmap', list2[randint])
 
@@ -349,7 +349,7 @@ class MapcyclePlugin(b3.plugin.Plugin):
         if not data:
             # select a random map from the mapcycle
             maplist = self._mapcycle.keys()
-            data = maplist[randrange(len(maplist) - 1)]
+            data = maplist[randrange(len(maplist))]
 
         match = self.console.getMapsSoundingLike(data)
         if isinstance(match, list):
