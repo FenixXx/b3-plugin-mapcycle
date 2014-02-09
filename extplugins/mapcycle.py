@@ -17,7 +17,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 __author__ = 'Fenix'
-__version__ = '1.2'
+__version__ = '1.3'
 
 import b3
 import b3.plugin
@@ -89,8 +89,7 @@ class MapcyclePlugin(b3.plugin.Plugin):
                          'using default: %s' % self._settings['last_map_limit'])
         except ValueError, e:
             self.error('could not load settings/lastmaplimit config value: %s' % e)
-            self.debug('using default value (%s) for settings/lastmaplimit' %
-                       self._settings['last_map_limit'])
+            self.debug('using default value (%s) for settings/lastmaplimit' % self._settings['last_map_limit'])
 
     def onStartup(self):
         """\
@@ -110,10 +109,10 @@ class MapcyclePlugin(b3.plugin.Plugin):
                     self._adminPlugin.registerCommand(self, cmd, level, func, alias)
                     
         # register the events needed
-        self.registerEvent(b3.events.EVT_GAME_WARMUP, self.onLevelStart)
-        self.registerEvent(b3.events.EVT_GAME_ROUND_START, self.onLevelStart)
-        self.registerEvent(b3.events.EVT_VOTE_PASSED, self.onVotePassed)
-        self.registerEvent(b3.events.EVT_GAME_EXIT, self.onGameExit)
+        self.registerEvent(self.console.getEventID('EVT_GAME_WARMUP'), self.onLevelStart)
+        self.registerEvent(self.console.getEventID('EVT_GAME_ROUND_START'), self.onLevelStart)
+        self.registerEvent(self.console.getEventID('EVT_VOTE_PASSED'), self.onVotePassed)
+        self.registerEvent(self.console.getEventID('EVT_GAME_EXIT'), self.onGameExit)
 
         # parse the mapcycle
         self.parse_mapcycle()
@@ -286,8 +285,10 @@ class MapcyclePlugin(b3.plugin.Plugin):
         Tells if the current level just started
         """
         team_modes = ('tdm', 'ts', 'ftl', 'cah', 'ctf', 'bm')
-        return (event.type == b3.events.EVT_GAME_WARMUP and self.console.game.gameType in team_modes) or \
-               (event.type == b3.events.EVT_GAME_ROUND_START and not self.console.game.gameType in team_modes)
+        return (event.type == self.console.getEventID('EVT_GAME_WARMUP') and
+                self.console.game.gameType in team_modes) or \
+               (event.type == self.console.getEventID('EVT_GAME_ROUND_START') and
+                not self.console.game.gameType in team_modes)
 
     def set_level_cvars(self, mapname, latch=False):
         """\
