@@ -17,7 +17,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 __author__ = 'Fenix'
-__version__ = '1.3'
+__version__ = '1.4'
 
 import b3
 import b3.plugin
@@ -296,8 +296,7 @@ class MapcyclePlugin(b3.plugin.Plugin):
         """
         if mapname is not None and mapname in self._mapcycle.keys():
             for key, value in self._mapcycle[mapname].iteritems():
-                islatch = self.is_cvar_latch(key)
-                if (islatch and latch) or not (islatch and not latch):
+                if self.is_cvar_latch(key) == latch:
                     self.console.setCvar(key, value)
 
     @staticmethod
@@ -323,7 +322,6 @@ class MapcyclePlugin(b3.plugin.Plugin):
             cursor.moveNext()
 
         cursor.close()
-
         return maplist
 
     ####################################################################################################################
@@ -358,7 +356,7 @@ class MapcyclePlugin(b3.plugin.Plugin):
 
     def cmd_pasetnextmap(self, data, client=None, cmd=None):
         """\
-        <mapname> - Set the nextmap (partial map name works)
+        <mapname> - set the nextmap (partial map name works)
         """
         if not data:
             # select a random map from the mapcycle
@@ -387,8 +385,14 @@ class MapcyclePlugin(b3.plugin.Plugin):
         Cycle to the next map
         """
         # set level cvars before switching
-        self.set_level_cvars(self.nextmap, latch=True)
-        self.console.say('^7cycling to nextmap ^3%s' % self.nextmap)
+        nextmap = self.nextmap
+        cvar = self.console.getCvar('g_nextmap')
+        if cvar:
+            self.nextmap = cvar.getString()
+            nextmap = self.nextmap
+
+        self.set_level_cvars(nextmap, latch=True)
+        self.console.say('^7cycling to nextmap ^3%s' % nextmap)
         time.sleep(1)
         self.console.write('cyclemap')
                 
