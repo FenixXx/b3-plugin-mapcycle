@@ -119,12 +119,17 @@ class MapcyclePlugin(b3.plugin.Plugin):
                 func = self.get_cmd(cmd)
                 if func:
                     self._adminPlugin.registerCommand(self, cmd, level, func, alias)
-                    
-        # register the events needed
-        self.registerEvent(self.console.getEventID('EVT_GAME_WARMUP'), self.onLevelStart)
-        self.registerEvent(self.console.getEventID('EVT_GAME_ROUND_START'), self.onLevelStart)
-        self.registerEvent(self.console.getEventID('EVT_VOTE_PASSED'), self.onVotePassed)
-        self.registerEvent(self.console.getEventID('EVT_GAME_EXIT'), self.onGameExit)
+
+        try:
+            self.registerEvent(self.console.getEventID('EVT_GAME_WARMUP'), self.onLevelStart)
+            self.registerEvent(self.console.getEventID('EVT_GAME_ROUND_START'), self.onLevelStart)
+            self.registerEvent(self.console.getEventID('EVT_VOTE_PASSED'), self.onVotePassed)
+            self.registerEvent(self.console.getEventID('EVT_GAME_EXIT'), self.onGameExit)
+        except TypeError:
+            self.registerEvent(self.console.getEventID('EVT_GAME_WARMUP'))
+            self.registerEvent(self.console.getEventID('EVT_GAME_ROUND_START'))
+            self.registerEvent(self.console.getEventID('EVT_VOTE_PASSED'))
+            self.registerEvent(self.console.getEventID('EVT_GAME_EXIT'))
 
         # parse the mapcycle
         self.parse_mapcycle()
@@ -137,6 +142,19 @@ class MapcyclePlugin(b3.plugin.Plugin):
     ##   EVENTS                                                                                                       ##
     ##                                                                                                                ##
     ####################################################################################################################
+
+    def onEvent(self, event):
+        """\
+        Old event system dispatcher
+        """
+        if event.type == self.console.getEventID('EVT_GAME_WARMUP'):
+            self.onLevelStart(event)
+        elif event.type == self.console.getEventID('EVT_GAME_ROUND_START'):
+            self.onLevelStart(event)
+        elif event.type == self.console.getEventID('EVT_VOTE_PASSED'):
+            self.onVotePassed(event)
+        elif event.type == self.console.getEventID('EVT_GAME_EXIT'):
+            self.onGameExit(event)
 
     def onLevelStart(self, event):
         """\
