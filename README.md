@@ -14,7 +14,6 @@ The plugin is also capable of setting server cvars according to the level being 
 
 * Copy **mapcycle.py** into **b3/extplugins**
 * Copy **plugin_mapcycle.xml** into **b3/extplugins/conf**
-* Import **mapcycle.sql** into your b3 database
 * Load the plugin in your **b3.xml** configuration file
 
 ## In-game user guide
