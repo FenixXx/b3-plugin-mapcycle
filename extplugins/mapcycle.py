@@ -25,9 +25,11 @@
 #   * JumperPlugin integration
 #   * make use of the built-in event EVT_GAME_MAP_CHANGE
 #   * removed doMapcycleRoutine execution from B3 startup
+#   17/05/2014 - 1.6.1 - Fenix
+#   * removed B3 1.9.x compatibility: iourt42 parser needed is shipped withj B3 1.10dev
 
 __author__ = 'Fenix'
-__version__ = '1.6'
+__version__ = '1.6.1'
 
 import b3
 import b3.plugin
@@ -40,18 +42,8 @@ from ConfigParser import NoSectionError
 from random import randrange
 from xml.dom import minidom
 from b3.plugins.admin import AdminPlugin
+from b3.functions import getCmd
 
-try:
-    # import the getCmd function
-    import b3.functions.getCmd as getCmd
-except ImportError:
-    # keep backward compatibility
-    def getCmd(instance, cmd):
-        cmd = 'cmd_%s' % cmd
-        if hasattr(instance, cmd):
-            func = getattr(instance, cmd)
-            return func
-        return None
 
 class MapcyclePlugin(b3.plugin.Plugin):
     
@@ -153,7 +145,7 @@ class MapcyclePlugin(b3.plugin.Plugin):
         Initialize plugin settings
         """
         # create database tables (if needed)
-        if not 'maphistory' in self.getTables():
+        if not 'maphistory' in self.console.storage.getTables():
             protocol = self.console.storage.dsnDict['protocol']
             self.console.storage.query(self.sql[protocol])
 
@@ -170,58 +162,15 @@ class MapcyclePlugin(b3.plugin.Plugin):
                 if func:
                     self.adminPlugin.registerCommand(self, cmd, level, func, alias)
 
-        try:
-            self.registerEvent(self.console.getEventID('EVT_GAME_MAP_CHANGE'), self.onLevelStart)
-            self.registerEvent(self.console.getEventID('EVT_VOTE_PASSED'), self.onVotePassed)
-            self.registerEvent(self.console.getEventID('EVT_GAME_EXIT'), self.onGameExit)
-        except TypeError:
-            self.registerEvent(self.console.getEventID('EVT_GAME_MAP_CHANGE'))
-            self.registerEvent(self.console.getEventID('EVT_VOTE_PASSED'))
-            self.registerEvent(self.console.getEventID('EVT_GAME_EXIT'))
-
-    ####################################################################################################################
-    ##                                                                                                                ##
-    ##   GET TABLES IMPLEMENTATION FOR B3 1.9.x RETROCOMPATIBILITY                                                    ##
-    ##                                                                                                                ##
-    ####################################################################################################################
-
-    def getTables(self):
-        """
-        List the tables of the current database.
-        :return: list of strings
-        """
-        tables = []
-        protocol = self.console.storage.dsnDict['protocol']
-        if protocol == 'mysql':
-            q = """SHOW TABLES"""
-        elif protocol == 'sqlite':
-            q = """SELECT * FROM sqlite_master WHERE type='table'"""
-        else:
-            raise AssertionError("unsupported database %s" % protocol)
-        cursor = self.console.storage.query(q)
-        if cursor and not cursor.EOF:
-            while not cursor.EOF:
-                r = cursor.getRow()
-                tables.append(r.values()[0])
-                cursor.moveNext()
-        return tables
+        self.registerEvent(self.console.getEventID('EVT_GAME_MAP_CHANGE'), self.onLevelStart)
+        self.registerEvent(self.console.getEventID('EVT_VOTE_PASSED'), self.onVotePassed)
+        self.registerEvent(self.console.getEventID('EVT_GAME_EXIT'), self.onGameExit)
 
     ####################################################################################################################
     ##                                                                                                                ##
     ##   EVENTS                                                                                                       ##
     ##                                                                                                                ##
     ####################################################################################################################
-
-    def onEvent(self, event):
-        """
-        Old event dispatch system
-        """
-        if event.type == self.console.getEventID('EVT_GAME_MAP_CHANGE'):
-            self.onLevelStart(event)
-        elif event.type == self.console.getEventID('EVT_VOTE_PASSED'):
-            self.onVotePassed(event)
-        elif event.type == self.console.getEventID('EVT_GAME_EXIT'):
-            self.onGameExit(event)
 
     def onLevelStart(self, event):
         """
