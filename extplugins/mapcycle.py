@@ -1,6 +1,6 @@
 #
 # Mapcycle Plugin for BigBrotherBot(B3) (www.bigbrotherbot.net)
-# Copyright (C) 2013 Fenix <fenix@bigbrotherbot.net)
+# Copyright (C) 2013 Daniele Pantaleone <fenix@bigbrotherbot.net)
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -9,15 +9,25 @@
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+#
+# CHANGELOG
+#
+#   16/05/2014 - 1.6 - Fenix
+#   * code cleanup
+#   * added SQLite compatibility
+#   * added automated tests
+#   * JumperPlugin integration
+#   * make use of the built-in event EVT_GAME_MAP_CHANGE
+#   * removed doMapcycleRoutine execution from B3 startup
 
 __author__ = 'Fenix'
-__version__ = '1.5'
+__version__ = '1.6'
 
 import b3
 import b3.plugin
@@ -29,22 +39,56 @@ from ConfigParser import NoOptionError
 from ConfigParser import NoSectionError
 from random import randrange
 from xml.dom import minidom
+from b3.plugins.admin import AdminPlugin
 
+try:
+    # import the getCmd function
+    import b3.functions.getCmd as getCmd
+except ImportError:
+    # keep backward compatibility
+    def getCmd(instance, cmd):
+        cmd = 'cmd_%s' % cmd
+        if hasattr(instance, cmd):
+            func = getattr(instance, cmd)
+            return func
+        return None
 
 class MapcyclePlugin(b3.plugin.Plugin):
     
-    _adminPlugin = None
-    _poweradminurtPlugin = None
-
-    _mapcycle = dict()
-    _settings = dict(last_map_limit=3)
-
-    _sql = dict(q1="""INSERT INTO `maphistory`(`mapname`, `time_add`, `time_edit`) VALUES ('%s', '%d', '%d')""",
-                q2="""UPDATE `maphistory` SET `num_played` = '%d', `time_edit` = '%d' WHERE `mapname` = '%s'""",
-                q3="""SELECT * FROM `maphistory` WHERE `mapname` = '%s'""",
-                q4="""SELECT * FROM `maphistory` ORDER BY `time_edit` DESC LIMIT %d, %d""")
-
+    adminPlugin = None
+    jumperPlugin = None
     nextmap = None
+
+    mapcycle = {}
+    settings = {'last_map_limit': 3}
+
+    # this will hold the reference to the correct
+    # getMapsSoundingLike() function to be used
+    getMapsSoundingLike = None
+
+    sql = {
+        ## DATA STORAGE/RETRIEVAL
+        'q1': """INSERT INTO maphistory(mapname, time_add, time_edit) VALUES ('%s', '%d', '%d')""",
+        'q2': """UPDATE maphistory SET num_played = '%d', time_edit = '%d' WHERE mapname = '%s'""",
+        'q3': """SELECT * FROM maphistory WHERE mapname = '%s'""",
+        'q4': """SELECT * FROM maphistory ORDER BY time_edit DESC LIMIT %d, %d""",
+
+        ## DATABASE SETUP
+        'mysql': """CREATE TABLE IF NOT EXISTS maphistory (
+                    id int(10) unsigned NOT NULL AUTO_INCREMENT,
+                    mapname varchar(60) DEFAULT NULL,
+                    num_played int(10) unsigned NOT NULL DEFAULT '1',
+                    time_add int(10) unsigned NOT NULL,
+                    time_edit int(10) unsigned NOT NULL,
+                    PRIMARY KEY (id)
+                    ) ENGINE=MyISAM DEFAULT CHARSET=utf8 AUTO_INCREMENT=1;""",
+        'sqlite': """CREATE TABLE IF NOT EXISTS maphistory (
+                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                     mapname VARCHAR(64) DEFAULT NULL,
+                     num_played INTEGER NOT NULL DEFAULT '1',
+                     time_add INTEGER NOT NULL,
+                     time_edit INTEGER NOT NULL);"""
+    }
 
     ####################################################################################################################
     ##                                                                                                                ##
@@ -62,50 +106,56 @@ class MapcyclePlugin(b3.plugin.Plugin):
             raise SystemExit(220)
 
         # get the admin plugin
-        self._adminPlugin = self.console.getPlugin('admin')
-        if not self._adminPlugin:
+        self.adminPlugin = self.console.getPlugin('admin')
+        if not self.adminPlugin:
             self.critical('could not start without admin plugin')
             raise SystemExit(220)
 
-        # get the poweradminurt plugin
-        self._poweradminurtPlugin = self.console.getPlugin('poweradminurt')
+        self.jumperPlugin = self.console.getPlugin('jumper')
+        if not self.jumperPlugin:
+            # use the built-in function
+            self.getMapsSoundingLike = self.console.getMapsSoundingLike
+        else:
+            # use the custom version of the function which will skip std maps
+            self.getMapsSoundingLike = self.jumperPlugin.getMapsSoundingLike
 
-        # override other plugin commands
-        self._adminPlugin.cmd_map = self.cmd_map
+        # override map command in the admin plugin
+        AdminPlugin.cmd_map = self.cmd_map
 
-        if self._poweradminurtPlugin:
-            self._poweradminurtPlugin.cmd_pacyclemap = self.cmd_pacyclemap
-            self._poweradminurtPlugin.cmd_pasetnextmap = self.cmd_pasetnextmap
+        try:
+            # override command in the PowerAdminUrt Plugin if available
+            import b3.extplugins.poweradminurt.Poweradminurtplugin as Poweradminurtplugin
+            Poweradminurtplugin.cmd_pasetnextmap = self.cmd_pasetnextmap
+            Poweradminurtplugin.cmd_pacyclemap = self.cmd_pacyclemap
+        except ImportError:
+            self.debug('not overriding PowerAdminUrt commands: PowerAdminUrt Plugin is not loaded')
+            pass
 
     def onLoadConfig(self):
-        """\
+        """
         Load plugin configuration
         """
         try:
-            self._settings['last_map_limit'] = self.config.getint('settings', 'lastmaplimit')
-            self.debug('loaded settings/lastmaplimit setting: %s' % self._settings['last_map_limit'])
+            self.settings['last_map_limit'] = self.config.getint('settings', 'lastmaplimit')
+            self.debug('loaded settings/lastmaplimit setting: %s' % self.settings['last_map_limit'])
         except NoOptionError:
             self.warning('could not find settings/lastmaplimit in config file, '
-                         'using default: %s' % self._settings['last_map_limit'])
+                         'using default: %s' % self.settings['last_map_limit'])
         except ValueError, e:
             self.error('could not load settings/lastmaplimit config value: %s' % e)
-            self.debug('using default value (%s) for settings/lastmaplimit' % self._settings['last_map_limit'])
+            self.debug('using default value (%s) for settings/lastmaplimit' % self.settings['last_map_limit'])
+
+        # parse the mapcycle
+        self.getMapcycleFromConfig()
 
     def onStartup(self):
-        """\
+        """
         Initialize plugin settings
         """
-        # create database table if needed
-        tables = self.console.storage.getTables()
-        if not 'maphistory' in tables:
-            self.console.storage.query("""CREATE TABLE IF NOT EXISTS `maphistory` (
-                                          `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-                                          `mapname` varchar(60) DEFAULT NULL,
-                                          `num_played` int(10) unsigned NOT NULL DEFAULT '1',
-                                          `time_add` int(10) unsigned NOT NULL,
-                                          `time_edit` int(10) unsigned NOT NULL,
-                                          PRIMARY KEY (`id`)
-                                          ) ENGINE=MyISAM DEFAULT CHARSET=utf8 AUTO_INCREMENT=1 ;""")
+        # create database tables (if needed)
+        if not 'maphistory' in self.getTables():
+            protocol = self.console.storage.dsnDict['protocol']
+            self.console.storage.query(self.sql[protocol])
 
         # register our commands
         if 'commands' in self.config.sections():
@@ -116,26 +166,45 @@ class MapcyclePlugin(b3.plugin.Plugin):
                 if len(sp) == 2:
                     cmd, alias = sp
 
-                func = self.get_cmd(cmd)
+                func = getCmd(self, cmd)
                 if func:
-                    self._adminPlugin.registerCommand(self, cmd, level, func, alias)
+                    self.adminPlugin.registerCommand(self, cmd, level, func, alias)
 
         try:
-            self.registerEvent(self.console.getEventID('EVT_GAME_WARMUP'), self.onLevelStart)
-            self.registerEvent(self.console.getEventID('EVT_GAME_ROUND_START'), self.onLevelStart)
+            self.registerEvent(self.console.getEventID('EVT_GAME_MAP_CHANGE'), self.onLevelStart)
             self.registerEvent(self.console.getEventID('EVT_VOTE_PASSED'), self.onVotePassed)
             self.registerEvent(self.console.getEventID('EVT_GAME_EXIT'), self.onGameExit)
         except TypeError:
-            self.registerEvent(self.console.getEventID('EVT_GAME_WARMUP'))
-            self.registerEvent(self.console.getEventID('EVT_GAME_ROUND_START'))
+            self.registerEvent(self.console.getEventID('EVT_GAME_MAP_CHANGE'))
             self.registerEvent(self.console.getEventID('EVT_VOTE_PASSED'))
             self.registerEvent(self.console.getEventID('EVT_GAME_EXIT'))
 
-        # parse the mapcycle
-        self.parse_mapcycle()
+    ####################################################################################################################
+    ##                                                                                                                ##
+    ##   GET TABLES IMPLEMENTATION FOR B3 1.9.x RETROCOMPATIBILITY                                                    ##
+    ##                                                                                                                ##
+    ####################################################################################################################
 
-        # execute the mapcycle routine
-        self.do_mapcycle_routine()
+    def getTables(self):
+        """
+        List the tables of the current database.
+        :return: list of strings
+        """
+        tables = []
+        protocol = self.console.storage.dsnDict['protocol']
+        if protocol == 'mysql':
+            q = """SHOW TABLES"""
+        elif protocol == 'sqlite':
+            q = """SELECT * FROM sqlite_master WHERE type='table'"""
+        else:
+            raise AssertionError("unsupported database %s" % protocol)
+        cursor = self.console.storage.query(q)
+        if cursor and not cursor.EOF:
+            while not cursor.EOF:
+                r = cursor.getRow()
+                tables.append(r.values()[0])
+                cursor.moveNext()
+        return tables
 
     ####################################################################################################################
     ##                                                                                                                ##
@@ -144,12 +213,10 @@ class MapcyclePlugin(b3.plugin.Plugin):
     ####################################################################################################################
 
     def onEvent(self, event):
-        """\
-        Old event system dispatcher
         """
-        if event.type == self.console.getEventID('EVT_GAME_WARMUP'):
-            self.onLevelStart(event)
-        elif event.type == self.console.getEventID('EVT_GAME_ROUND_START'):
+        Old event dispatch system
+        """
+        if event.type == self.console.getEventID('EVT_GAME_MAP_CHANGE'):
             self.onLevelStart(event)
         elif event.type == self.console.getEventID('EVT_VOTE_PASSED'):
             self.onVotePassed(event)
@@ -157,21 +224,16 @@ class MapcyclePlugin(b3.plugin.Plugin):
             self.onGameExit(event)
 
     def onLevelStart(self, event):
-        """\
+        """
         Handle EVT_GAME_WARMUP and EVT_GAME_ROUND_START
         """
-        # be sure to be at the very map beginning
-        if not self.is_level_started(event):
-            return
-
-        # parse the mapcycle
-        self.parse_mapcycle()
-
-        # execute the mapcycle routine
-        self.do_mapcycle_routine()
+        mapname = event.data['new']
+        self.setLevelCvars(mapname, False)
+        self.getMapcycleFromConfig()
+        self.doMapcycleRoutine(mapname)
 
     def onVotePassed(self, event):
-        """\
+        """
         Handle EVT_VOTE_PASSED
         """
         r = re.compile(r'''^(?P<type>\w+)\s?(?P<args>.*)$''')
@@ -183,165 +245,132 @@ class MapcyclePlugin(b3.plugin.Plugin):
         if m.group('type') == 'g_nextmap':
             self.nextmap = m.group('args')
         elif m.group('type') == 'map':
-            self.set_level_cvars(m.group('args'), latch=True)
+            self.setLevelCvars(m.group('args'), True)
         elif m.group('type') == 'cyclemap':
-            self.set_level_cvars(self.nextmap, latch=True)
+            self.setLevelCvars(self.nextmap, True)
 
     def onGameExit(self, event):
-        """\
+        """
         Handle EVT_GAME_EXIT
         """
-        self.set_level_cvars(self.nextmap, latch=True)
+        self.setLevelCvars(self.nextmap, True)
                 
     ####################################################################################################################
     ##                                                                                                                ##
-    ##   FUNCTIONS                                                                                                    ##
+    ##   OTHER METHODS                                                                                                ##
     ##                                                                                                                ##
     ####################################################################################################################
-        
-    def get_cmd(self, cmd):
-        cmd = 'cmd_%s' % cmd
-        if hasattr(self, cmd):
-            func = getattr(self, cmd)
-            return func
-        return None
 
-    def parse_mapcycle(self):
-        """\
-        Parse the mapcycle from the configuration file
+    def getMapcycleFromConfig(self):
         """
+        Retrieve the mapcycle from the configuration file
+        """
+        # empty the dict
+        self.mapcycle = {}
+        self.debug('retrieving mapcycle maps list from XML configuration file...')
+
         try:
-
-            # empty the dict
-            self._mapcycle = dict()
-
-            # load the mapcycle map list
             document = minidom.parse(self.config.fileName)
             maps = document.getElementsByTagName('map')
             for node in maps:
-                # get the map name to be used as dict key:
-                # if it's empty it will just be skipped
                 mapname = None
                 for v in node.childNodes:
                     if v.nodeType == v.TEXT_NODE:
                         mapname = v.data
                         break
 
-                # if there is no text
                 if not mapname:
-                    self.warning('could not load mapname from mapcycle map list: empty node found')
+                    self.warning('could not parse line from configuration file: empty node found')
                     continue
 
-                cvars = dict()
+                cvars = {}
                 for name, value in node.attributes.items():
                     cvars[name.lower()] = value
 
-                # store the map in the dict
-                self._mapcycle[mapname] = cvars
-                self.debug('loaded map [%s] : %s' % (mapname, self._mapcycle[mapname]))
+                self.mapcycle[mapname] = cvars
+                self.debug('map : %s | cvars : %s' % (mapname, str(self.mapcycle[mapname])))
 
         except NoSectionError, e:
-            self.error('could not load mapcycle list form configuration file: %s' % e)
+            self.error('could not load mapcycle maps list from XML configuration file: %s' % e)
 
-    def do_mapcycle_routine(self):
-        """\
+    def doMapcycleRoutine(self, mapname):
+        """
         Execute the mapcycle routine
         """
-        # get the current map name
-        mapname = self.console.game.mapName
         if not mapname:
-            self.warning('could not execute mapcycle routine: mapname appears to be None')
+            self.warning('could not execute mapcycle routine: unable to retrieve current mapname')
             return
 
-        # set the current level cvars
-        self.set_level_cvars(mapname, latch=False)
+        if not self.mapcycle:
+            self.warning('could not execute mapcycle routine: mapcycle maps list is empty')
+            return
 
-        # check if this map has been already played previously
-        cursor = self.console.storage.query(self._sql['q3'] % mapname)
-
+        cursor = self.console.storage.query(self.sql['q3'] % mapname)
         if cursor.EOF:
             # if it's the first time we are playing this map, store a new record
-            self.console.storage.query(self._sql['q1'] % (mapname, self.console.time(), self.console.time()))
+            self.verbose("storing new data for map '%s'" % mapname)
+            self.console.storage.query(self.sql['q1'] % (mapname, time.time(), time.time()))
         else:
             # if this map has been already played previously, update the old record
             num_played = int(cursor.getRow()['num_played']) + 1
-            self.console.storage.query(self._sql['q2'] % (num_played, self.console.time(), mapname))
+            self.verbose("updating data for map '%s': num_played = %d" % (mapname, num_played))
+            self.console.storage.query(self.sql['q2'] % (num_played, time.time(), mapname))
 
         cursor.close()
 
-        # print mapcycle list and num of elements in log file for debugging purpose
-        self.verbose('mapcycle is composed of %s maps: %s' % (len(self._mapcycle), ', '.join(self._mapcycle.keys())))
-
-        list1 = []  # holds last played map names
-        list2 = []  # holds the maps which are available to be selected as nextmap
-
-        # retrieving last played maps in order to compute a proper g_nextmap
-        cursor = self.console.storage.query(self._sql['q4'] % (0, len(self._mapcycle) - 1))
-
-        while not cursor.EOF:
-            list1.append(cursor.getRow()['mapname'])
-            cursor.moveNext()
-
-        cursor.close()
+        list1 = self.getLastMaps(start=0, limit=len(self.mapcycle) - 1)
+        list2 = []
 
         # print last played map list and num of elements in log file for debugging purpose
-        self.verbose("last played map list is composed of %s maps: %s" % (len(list1), ', '.join(list1)))
-
-        # discarding all the last played maps found
-        # in mapcycle map list and building a list of
-        # possible choices from where to pick the nextmap
+        self.verbose("[LIST] mapcycle contains %s elements: %s " % (len(self.mapcycle), ', '.join(self.mapcycle.keys())))
+        self.verbose("[LIST] discarding %s maps in nextmap selection: %s" % (len(list1), ', '.join(list1)))
 
         # Looking for a map not being played
         # recently so we can use it as nextmap
-        for m in self._mapcycle.keys():
+        for m in self.mapcycle.keys():
             if m not in list1:
                 list2.append(m)
 
         # if no map is left
-        if len(list2) == 0:
-            self.warning('could not compute nextmap to be set on server: no available maps left')
+        if not list2:
+            self.warning('could not execute mapcycle routine: no suitable map left')
             return
 
         # print available map list and num of elements in log file for debugging purpose
-        self.verbose("available map list is composed of %s maps: %s" % (len(list2), ', '.join(list2)))
+        self.verbose("[LIST] there are %s available maps for nextmap selection: %s" % (len(list2), ', '.join(list2)))
 
         # selecting a random nextmap among the list
         randint = randrange(len(list2))
         self.nextmap = list2[randint]
         self.console.setCvar('g_nextmap', list2[randint])
 
-    def is_level_started(self, event):
-        """\
-        Tells if the current level just started
-        """
-        team_modes = ('tdm', 'ts', 'ftl', 'cah', 'ctf', 'bm')
-        return (event.type == self.console.getEventID('EVT_GAME_WARMUP') and
-                self.console.game.gameType in team_modes) or \
-               (event.type == self.console.getEventID('EVT_GAME_ROUND_START') and
-                not self.console.game.gameType in team_modes)
-
-    def set_level_cvars(self, mapname, latch=False):
-        """\
-        Set the given map cvars
-        """
-        if mapname is not None and mapname in self._mapcycle.keys():
-            for key, value in self._mapcycle[mapname].iteritems():
-                if self.is_cvar_latch(key) == latch:
-                    self.console.setCvar(key, value)
-
     @staticmethod
-    def is_cvar_latch(name):
-        """\
+    def isCvarLatch(name):
+        """
         Tells if a cvar is latch or not
         """
-        cvarlist = ['bot_enable', 'g_bombplanttime', 'g_gametype', 'g_matchmode', 'g_maxgameclients', 'sv_maxclients']
-        return name in cvarlist
+        return name in [
+            'bot_enable',
+            'g_bombplanttime',
+            'g_gametype',
+            'g_matchmode',
+            'g_maxgameclients',
+            'sv_maxclients']
 
-    def get_last_maps(self):
-        """\
+    def setLevelCvars(self, mapname, latch=False):
+        """
+        Set the given map cvars
+        """
+        if mapname is not None and mapname in self.mapcycle.keys():
+            for key, value in self.mapcycle[mapname].iteritems():
+                if self.isCvarLatch(key) == latch:
+                    self.console.setCvar(key, value)
+
+    def getLastMaps(self, start, limit):
+        """
         Returns a list with the last maps played
         """
-        cursor = self.console.storage.query(self._sql['q4'] % (1, self._settings['last_map_limit']))
+        cursor = self.console.storage.query(self.sql['q4'] % (start, limit))
         if cursor.EOF:
             cursor.close()
             return []
@@ -361,22 +390,20 @@ class MapcyclePlugin(b3.plugin.Plugin):
     ####################################################################################################################
 
     def cmd_map(self, data, client, cmd=None):
-        """\
+        """
         <map> - switch current map
         """
         if not data:
             client.message('missing data, try ^3!^7help map')
             return
 
-        match = self.console.getMapsSoundingLike(data)
+        match = self.getMapsSoundingLike(data)
         if isinstance(match, list):
-            client.message('do you mean: ^3%s ?' % '^7, ^3'.join(match[:5]))
+            client.message('do you mean: ^3%s?' % '^7, ^3'.join(match[:5]))
             return
 
         if isinstance(match, basestring):
-            # set level cvars before switching
-            self.set_level_cvars(match, latch=True)
-            self.console.say('^7changing map to ^3%s' % match)
+            cmd.sayLoudOrPM(client, '^7changing map to ^3%s' % match)
             time.sleep(1)
             self.console.write('map %s' % match)
             return
@@ -385,43 +412,42 @@ class MapcyclePlugin(b3.plugin.Plugin):
         client.message('^7could not find any map matching ^1%s' % data)
 
     def cmd_pasetnextmap(self, data, client=None, cmd=None):
-        """\
-        <mapname> - set the nextmap (partial map name works)
+        """
+        [<mapname>] - set the nextmap (partial map name works)
         """
         if not data:
-            # select a random map from the mapcycle
-            maplist = self._mapcycle.keys()
-            data = maplist[randrange(len(maplist))]
+            # random choice from mapcycle
+            list1 = self.mapcycle.keys()
+            data = list1[randrange(len(list1))]
 
-        match = self.console.getMapsSoundingLike(data)
+        match = self.getMapsSoundingLike(data)
         if isinstance(match, list):
             client.message('do you mean: ^3%s?' % '^7, ^3'.join(match[:5]))
             return
 
         if isinstance(match, basestring):
-            # mark the new nextmap
             self.nextmap = match
             self.console.setCvar('g_nextmap', match)
             if client:
                 client.message('^7nextmap set to ^3%s' % match)
-
             return
 
         # no map found
         client.message('^7could not find any map matching ^1%s' % data)
 
     def cmd_pacyclemap(self, data, client, cmd=None):
-        """\
+        """
         Cycle to the next map
         """
         # set level cvars before switching
         nextmap = self.nextmap
         cvar = self.console.getCvar('g_nextmap')
         if cvar:
+            # if we got a valid cvar, use this value
             self.nextmap = cvar.getString()
             nextmap = self.nextmap
 
-        self.set_level_cvars(nextmap, latch=True)
+        self.setLevelCvars(nextmap, latch=True)
         self.console.say('^7cycling to nextmap ^3%s' % nextmap)
         time.sleep(1)
         self.console.write('cyclemap')
@@ -436,11 +462,10 @@ class MapcyclePlugin(b3.plugin.Plugin):
         """
         Display the last map(s) played
         """
-        maplist = self.get_last_maps()
-        
-        if not maplist:
+        list1 = self.getLastMaps(1, self.settings['last_map_limit'])
+        if not list1:
             client.message('^7could not retrieve last map(s)')
             return
 
         # print in-game the last map played
-        cmd.sayLoudOrPM(client, '^7Last map%s: ^3%s' % ('s' if len(maplist) > 1 else '', '^7, ^3'.join(maplist)))
+        cmd.sayLoudOrPM(client, '^7Last map%s: ^3%s' % ('s' if len(list1) > 1 else '', '^7, ^3'.join(list1)))
