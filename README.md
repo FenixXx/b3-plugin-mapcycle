@@ -31,7 +31,7 @@ Requirements
 ------------
 
 * Urban Terror 4.2 server [g_modversion >= 4.2.015]
-* B3 version  >= `1.10dev`
+* B3 version  >= 1.10dev
 
 The plugin relies on the Admin Plugin only (as every other B3 plugin). Although the plugin overrides some commands
 declared in other plugins (`!map` from **Admin Plugin** and `!setnextmap`, `!cyclemap` from **PowerAdminUrt Plugin**)
