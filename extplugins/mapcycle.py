@@ -26,10 +26,12 @@
 #   * make use of the built-in event EVT_GAME_MAP_CHANGE
 #   * removed doMapcycleRoutine execution from B3 startup
 #   17/05/2014 - 1.6.1 - Fenix
-#   * removed B3 1.9.x compatibility: iourt42 parser needed is shipped withj B3 1.10dev
+#   * removed B3 1.9.x compatibility: iourt42 parser needed is shipped with B3 1.10dev
+#   14/06/2014 - 1.7 - Fenix
+#   * redid command methods override
 
 __author__ = 'Fenix'
-__version__ = '1.6.1'
+__version__ = '1.7'
 
 import b3
 import b3.plugin
@@ -41,7 +43,6 @@ from ConfigParser import NoOptionError
 from ConfigParser import NoSectionError
 from random import randrange
 from xml.dom import minidom
-from b3.plugins.admin import AdminPlugin
 from b3.functions import getCmd
 
 
@@ -49,6 +50,7 @@ class MapcyclePlugin(b3.plugin.Plugin):
     
     adminPlugin = None
     jumperPlugin = None
+    powerAdminUrtPlugin = None
     nextmap = None
 
     mapcycle = {}
@@ -103,6 +105,7 @@ class MapcyclePlugin(b3.plugin.Plugin):
             self.critical('could not start without admin plugin')
             raise SystemExit(220)
 
+        # get the jumper plugin
         self.jumperPlugin = self.console.getPlugin('jumper')
         if not self.jumperPlugin:
             # use the built-in function
@@ -111,17 +114,49 @@ class MapcyclePlugin(b3.plugin.Plugin):
             # use the custom version of the function which will skip std maps
             self.getMapsSoundingLike = self.jumperPlugin.getMapsSoundingLike
 
-        # override map command in the admin plugin
-        AdminPlugin.cmd_map = self.cmd_map
+        # get the poweradminurt
+        self.powerAdminUrtPlugin = self.console.getPlugin('poweradminurt')
 
         try:
-            # override command in the PowerAdminUrt Plugin if available
-            import b3.extplugins.poweradminurt.Poweradminurtplugin as Poweradminurtplugin
-            Poweradminurtplugin.cmd_pasetnextmap = self.cmd_pasetnextmap
-            Poweradminurtplugin.cmd_pacyclemap = self.cmd_pacyclemap
-        except ImportError:
-            self.debug('not overriding PowerAdminUrt commands: PowerAdminUrt Plugin is not loaded')
-            pass
+            # override !map command
+            self.adminPlugin._commands['map'].plugin = self
+            self.adminPlugin._commands['map'].func = self.cmd_map
+            self.adminPlugin._commands['map'].help = self.cmd_map.__doc__
+            alias = self.adminPlugin._commands['map'].alias
+            if alias and alias in self.adminPlugin._commands.keys():
+                self.adminPlugin._commands[alias].plugin = self
+                self.adminPlugin._commands[alias].func = self.cmd_map
+                self.adminPlugin._commands[alias].help = self.cmd_map.__doc__
+        except KeyError:
+            self.debug('not overriding command !map: it has not been registered by the Admin plugin')
+
+        if self.powerAdminUrtPlugin:
+
+            try:
+                # override !pasetnextmap command
+                self.adminPlugin._commands['pasetnextmap'].plugin = self
+                self.adminPlugin._commands['pasetnextmap'].func = self.cmd_pasetnextmap
+                self.adminPlugin._commands['pasetnextmap'].help = self.cmd_pasetnextmap.__doc__
+                alias = self.adminPlugin._commands['pasetnextmap'].alias
+                if alias and alias in self.adminPlugin._commands.keys():
+                    self.adminPlugin._commands[alias].plugin = self
+                    self.adminPlugin._commands[alias].func = self.cmd_pasetnextmap
+                    self.adminPlugin._commands[alias].help = self.cmd_pasetnextmap.__doc__
+            except KeyError:
+                self.debug('not overriding command !pasetnextmap: it has not been registered by the PowerAdminUrt plugin')
+
+            try:
+                # override !pacyclemap command
+                self.adminPlugin._commands['pacyclemap'].plugin = self
+                self.adminPlugin._commands['pacyclemap'].func = self.cmd_pacyclemap
+                self.adminPlugin._commands['pacyclemap'].help = self.cmd_pacyclemap.__doc__
+                alias = self.adminPlugin._commands['pacyclemap'].alias
+                if alias and alias in self.adminPlugin._commands.keys():
+                    self.adminPlugin._commands[alias].plugin = self
+                    self.adminPlugin._commands[alias].func = self.cmd_pacyclemap
+                    self.adminPlugin._commands[alias].help = self.cmd_pacyclemap.__doc__
+            except KeyError:
+                self.debug('not overriding command !pacyclemap: it has not been registered by the PowerAdminUrt plugin')
 
     def onLoadConfig(self):
         """
